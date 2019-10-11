@@ -356,8 +356,361 @@ FileWriter(B)(“result.txt”);
   \caption{测试程序在8核上运行的计算同步比}\label{fig:x86computeSync}
 \end{figure}
 
+\subsection{面向 CPU 和 GPU 异构多核集群的 COStream 编译优化}
+
+目前，各种新型的高性能体系结构不断涌现，以传统处理器CPU与图形处 理器GPU协同工作模式来构建异构硬件平台逐渐成为一种新型的并行处理方 式。CPU/GPU异构集群是由多个服务器节点组成的集群，其中每个节点封装多 核CPU与一定数量的GPU。CPU/GPU异构集群相对通用CPU集群在计算、访存与通信方面存在很大的差异性，这给研究人员带来了难度。 
+
+COStream在异构集群的数据流程序的编译优化上，提出并实现了面向 CPU/GPU混合架构的数据流程序任务划分方法和多粒度调度策略，包括任务的分类处理、GPU端任务的水平分裂和CPU端离散任务的均衡化，构造了软件流水调度，经过编译优化生成OpenCL目标代码。
+
+GPU在大规模数据的并行方面有很大的优势，但GPU间的通信开销却相当巨大，任务划分目的主要是保证各服务器节点的计算负载均衡、通信开销最小化，以及在单个节点上，充分发挥CPU逻辑控制与串行计算特点以及GPU计算密集性优势，同时保证 CPU 多核间负载均衡和不同GPU间数据通信开销最小化。COStream在异构集群的数据流程序的编译框架中的任务划分算法主要分为任务划分预处理任务划分与调度。
+
+\subsubsection{任务划分预处理}
+该阶段主要分成两个步骤：一是引入扩大因子，二是任务的分类处理。引入扩大因子，即计算节点执行次数整体扩大，在各个应用程序中，各计算节点的执行次数远远小于GPU可并行执行的规模，采用执行次数的整体扩大的方法，增大各个计算节点的工作量，从而充分利用GPU的并行计算单元；扩大因子的上限由三个因素决定：主存大小（Host Memory）、GPU存储空间（Device Memory）和GPU缓冲区分配机制。
+
+CPU端允许扩大倍数为N1，则
+\begin{equation}
+  N_1 \leq M_{CPU} / M_{CPUSumneeded} \label{eq:2.1}
+\end{equation}
+
+其中，MCPU表示主存可用空间的大小，MCPUSumneeded表示CPU端所有任务未扩大前所需的存储空间总和。
+
+GPU端允许扩大的倍数为N2，N2需满足公式\ref{eq:2.2}和公式\ref{eq:2.3}。
+\begin{equation}
+  N_2 \leq M_{GPU} / M_{GPUSumneeded} \label{eq:2.2}
+\end{equation}
+
+其中，$M_{GPU}$表示GPU可用的存储空间，$M_{GPUSumneeded}$表示GPU端所有任务未扩大前所需的存储空间总和。
+
+\begin{equation}
+  N_2 \leq M_{GPU} / M_{GPUSumneeded} \label{eq:2.3}
+\end{equation}
+
+其中，$M_{GPUmaxbuffer}$表示GPU每次允许分配缓冲区的最大值，$M_{GPUmaxneeded}$表示GPU端所有任务未扩大前各需存储空间的最大值。
+
+在同时满足公式\ref{eq:2.1}、公式\ref{eq:2.2}、公式\ref{eq:2.3}的前提下，选取合适的扩大因子为来保证GPU端任务有足够的计算量，并充分利用GPU计算资源。同时，引入扩大因子的过程间接地减少了CPU线程的同步次数，从而降低了应用程序整体的同步开销。
+
+任务的分类处理，该步骤根据任务是否具有可并行性以及相应通信开销的大小将其分配到GPU或CPU上去运行，充分利用CPU与GPU各自的优势，同时降低整体程序的通信量。COStream数据流程序中，计算节点有两种状态：有状态（Stateful）和无状态（Stateless）。状态为Stateful的结点表示该计算结点连续两次迭代运算间存在数据依赖，两次迭代运算不可并行执行；状态为Stateless的结点则与之相反，多次换代运算之间互相独立，可并行执行。数据流程序任务的分类处理，目标是根据计算节点的计算特点，将计算节点分配到适合的计算平台上进行计算，在分类的过程中，既要考虑该计算任务是否具有可并行性，即是否为状态是Stateless的结点，同时也要考虑GPU间高额的通信开销，减小异构平台间的数据通信量。任务分类首先判断SDF图中各个计算节点的状态，将Stateless计算节点划分到GPU端，Stateful计算节点划分到CPU端。接着考虑异构平台间的通信开销，调节边界结点。对于划分到GPU端的Stateless结点，如果其父结点为Stateful结点，并且其子结点为Stateful结点，那么初步分类的结果就会带来大量的GPU间的数据通信，从而产生巨大的通信开销，影响数据流程序的整体性能，因此任务初步分类完成后，需要将此类计算节点微调到CPU端。
+
+\subsubsection{任务划分}
+
+在任务划分预处理后，可以根据得到的SDP图进行任务划分。针对GPU/CPU异构多核集群，采用通用的METIS划分工具和Ｋ路图划分方法无法考虑到CPU和GPU间的通信开销。因此在GPU/CPU混合架构下采用METIS划分工具划分分为两个步骤进行，第一步通过将完整的SDF图进行METIS划分为N块，N表示GPU的个数，每一个划分分配一个GPU；第二步通过遍历每一个划分中的计算节点并判断该节点的状态，如果该计算节点的状态为Stateful，则将其划分到CPU端，剩余的结点划分在GPU端。
+
+使用$Metis$ 划分与Ｋ路划分方法都满足负载均衡和减小通信开销的目标，由于GPU与GPU间数据通信开销巨大，导致这两种划分方法对应用程序的整体执行效率提高不显著。
+
+针对以上问题，提出了GTHS算法，该算法利用计算节点的并行性将其均衡分裂到各GPU，以防止GPU与CPU间高额的通信开销影响数据流程序的整体性能。主要分为两个步骤，即数据流程序GPU端任务的水平分裂和CPU端离散任务均衡化。
+
+\subsubsection{数据流程序GPU端任务的水平分裂}
+
+数据流程序GPU端任务的水平分裂包括GPU端计算节点的分类以及对于新节点的连接。首先针对GPU端任务间数据访问对前一次的运行结果无依赖性的 应用，遍历分配到GPU端的各个计算节点，修改它们的稳态执行次数，并创建M个这些计算节点的复制节点（M为GPU个数减1）。这些计算节点分裂完成后，新创建的计算节点是离散，需要将个离散的计算节点与其对应的父子节点相连。如果其模板计算节点的父结点是GPU端计算节点，则该新创建的计算节点的模板结点的父结点在上一阶段也进行了水平分裂，那么将该新创建的计算节点与其模板计算节点的父结点的相应复制结点连接起来；如果其模板计算节点的父结点是CPU端计算节点，则其模板计算节点的父结点在上一阶段未进行水平分裂，那么将该新创建的计算节点与其模板计算节点的父结点直接连接起来；如果其模板计算节点的子结点是GPU端计算节点，则该模板结点的子结点在上一阶段也进行了水平分裂，那么需要将该新创建的计算节点与其模板计算节点的子结点的相应复制结点连接起来；如果其模板计算节点的子结点是 CPU端计算节点，则该模板计算节点的子结点在上一阶段未进行水平分裂，那么需要将该新创建的计算节点与其模板计算节点的子结点直接连接起来。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/3-1.png}\\
+  \caption{GPU端任务水平分裂示意图}\label{fig:3.1}
+\end{figure}
+
+如图\ref{fig:3.1}所示为数据流程序GPU端任务水平分裂的结果示意图，图\ref{fig:3.1}(a)为任务的分类结果，计算节点Ａ和计算节点Ｆ为CPU端结点计算节点Ｂ、Ｃ、Ｄ、Ｆ为GPU端结点；图\ref{fig:3.1}(b)为GPU端任务水平分裂结果，其中，计算节点Ａ和计算节点Ｆ为CPU端结点，计算节点B1、C1、D1和E1划分到GPU0，计算节点B2、C2、D2和E2划分到GPU1，计算节点B3、C3、D3和E3划分到GPU２。
+
+\subsubsection{数据流程序CPU端离散任务的均衡化}
+GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务的划分，而传统的任务划分方法对任务分类处理后分配到CPU端的各个离散结点未进行划分处理，均由一个CPU核控制计算，如果该CPU核的工作量过大时就会影响整个程序的执行效率。数据流程序CDTB算法针对这些CPU端的离散结点，结合复制分裂算法，选择合适CPU核，采用贪心的思想，均衡地将各计算结点分成若干个划分并将各划分映射到相应的CPU核上，保证各CPU核的负载均衡并提高各CPU核的利用率。基于GPU/CPU混合架构的数据流程序CPU端离散任务的均衡化过程主要包括以下三个阶段：
+
+\begin{itemize}	
+  \item {\bf CPU核数的确定}：图3.2为CPU核数确定过程的流程示意图。分别计算CPU端任务总的执行时间CPUTime、GPU端任务总的计算时间GPUTime以及数据流程序总的通信时间CommTime，如果CPUTime小于GPUTime和CommTime的最大值，选择CPU的核数为1，即分配到CPU端所有actor均由一个CPU核控制执行；如果CPUTime大于GPUTime和CommTime的最大值且分配到CPU端的actor个数为1，该actor的状态为stateful即该actor不可进行分裂，则选择CPU的核数为1；如果分配到CPU端的actor个数大于1或者存在工作量较大的状态为stateless的actor，根据公式3.1计算出应用程序执行时所需要的CPU核数NCPUcore；如果所求得的CPU核数大于系统可用的核数，则设置所需的CPU核数为系统可用的核数。通过CPU核数的确定，充分利用系统的计算资源，减小系统计算资源的浪费。
+
+  \item {\bf CPU端工作量相对较大且状态为stateless的actor复制分裂}: 根据CPU端所有actor总的工作量CPUTotalWork和计算出所需的CPU核数NCPUcore，结合公式\ref{eq:3.2}求得理论上分配给每个核的最大工作量MaxTotalWork，遍历CPU端的状态为stateless的actor，根据工作量估计求出该actor的工作量大小，如果其工作量大于MaxTotalWork，则利用复制分裂算法对该actor进行复制分裂操作，将新生成的actor与其模板actor的父结点和子结点连接以保证SDF的连通性，经过多次反复的复制分裂操作使CPU端每个状态为stateless的actor的工作量都小于MaxTotalWork。
+  
+  \begin{equation}
+    MaxTotalWork = CPUTotalWork/N_{CPL} \label{eq:3.2}
+  \end{equation}
+
+  \item {\bf CPU端各离散的actor与CPU核间的映射}: 该过程采用贪心的思想，遍历CPU端actor并根据工作量估计计算出该actor的工作量，选择当前各自总工作量最小的CPU核，将该actor划分到当前总工作量最小的CPU核上，完成该actor与CPU核映射。算法\ref{algo:cpureflect}描述了CPU端离散任务均衡化具体过程的实现细节，该方法适合于CPU端计算成为软件流水调度过程中数据流程序整体效率瓶颈的情况。根据公式3.1和公式3.2分别计算出该应用程序所需的CPU核数NCPUcore和每个CPU核理论最大的总的工作量MaxTotalWork，遍历CPU端所有状态为stateless的actor结点，针对工作量workvalue大于MaxTotalWork的actor，通过CreateNewActor函数对该actor进行分裂操作并将新创建的actor与其模板actor的父结点和子结点连接（行1-11）。遍历所有CPU端actor，选择当前总的工作量估计最小的CPU核并完成该actor与该CPU核的映射（行12-17）。
+\end{itemize}
+
+\begin{algorithm}
+  \caption{CPU Disperse Tasks Balancing Algorithm}
+  \label{algo:cpureflect}
+  Input: CPUNode[]\\
+  Output: mapActor2Partition(actor:partition)\\
+  for( all actor v in CPUNode[] ) \{\\
+    \hspace*{1 pc} int workvalue = CalculateWorkValue(v);\\
+    \hspace*{1 pc} if(!DetectiveActorState(v) \&\& workvalue > MaxTotalWork)\{\\
+    \hspace*{2 pc} int number = workvalue / MaxTotalWork;\\
+    \hspace*{2 pc} for(int i = 0; i < number; ++i) \{\\
+    \hspace*{3 pc} Actor u = CreateNewActor(v);\\
+    \hspace*{3 pc} u.parent = v.parent;\\
+    \hspace*{3 pc} u.child = v.child;\\
+    \hspace*{2 pc} \}\\
+    \hspace*{1 pc} \}\\
+  \}\\
+  for( all actor w in CPUNode[] )\{\\
+    \hspace*{1 pc} int workvalue = CalculateWorkValue(w);\\
+    \hspace*{1 pc} int index = FindMinWorkvalueCore();\\
+    \hspace*{1 pc} UpdateWorkvalue(index);\\
+    \hspace*{1 pc} mapActor2Partition(w:index);\\
+  \}
+  \end{algorithm}
+
+\subsubsection{阶段赋值}
+基于GPU/CPU混合架构的数据流程序优化框架采用软件流水调度方式，主要解决了软件流水调度过程中的三个问题：
+
+\begin{itemize}	
+  \item {\bf 线程同步问题}：在软件流水调度过程中，每个线程执行完各自的计算任务后，都需要进行一次同步操作，保证各个线程处于同一调度阶段，虽然该同步开销比硬件调度方式下的同步开销小，但由于计算任务的工作量过小或者处理器核数的增加都有可能带来同步开销的增大，从而影响了应用程序的执行效率。该优化框架引入扩大因子，成倍的扩大计算任务的稳态执行次数，增大各个计算任务的工作量，使计算任务多次计算后，同步一次，从而大大地减小了程序的同步操作数，增加了计算同步比，同时也充分利用了GPU/CPU混合架构下GPU高度并行计算的优势，提高了数据流程序的执行效率。
+
+  \item {\bf 负载均衡问题}: 软件流水调度过程中，负载均衡是影响应用程序整体执行效率的重要因素。在GPU/CPU混合架构系统平台下，由于GPU与CPU计算能力的不对等，如果各个线程的负载不均衡，则会带来多个线程忙等的现象，增加程序的同步开销。该优化框架通过GPU端任务水平分裂算法和CPU端离散任务均衡化算法，实现了GPU端计算、CPU端计算和异构通信的相对均衡，同时降低了应用程序的通信量。
+  
+  \begin{equation}
+    MaxTotalWork = CPUTotalWork/N_{CPL} \label{eq:3.2}
+  \end{equation}
+
+  \item {\bf 通信开销问题}: 在GPU/CPU混合架构中，异构通信占用软件流水调度的一个阶段，达到软件流水满状态，即计算任务稳态执行阶段，CPU端任务的计算、GPU端任务的计算以及CPU与GPU间的数据通信是并行执行的，高额的通信开销也会降低应用程序的执行效率。该优化框架采用任务分类方法，结合任务的计算特点，完成任务的分类，同时也降低异构的通信开销；GPU端任务的水平分裂，将GPU端任务均衡分裂到各GPU，避免了GPU与GPU间的高额通信，达到降低通信开销的目的。
+\end{itemize}
+
+经过GPU端GTHS算法和CPU端CDTB算法的任务划分，SDF图中的actor均被划分到对应的计算单元上运行，挖掘状态为stateful类型的结点的流水线并行性，构造软件流水线调度，使得状态为stateful的结点连续两次迭代计算，结点计算和数据传输都可以重叠执行，需要确定各结点被流水调度执行时的阶段号，即进行阶段赋值。
+
+\begin{algorithm}
+  \caption{基于GPU/CPU混合架构的阶段赋值}
+  \label{algo:gpucpu}
+  Input: SDFgraph, CPUNode[],GPUNode[], mapActor2Partition(actor:partition)\\
+  Output: mapActor2Stage(actor:stage)\\
+  TopologyOrderofActors = TopologyTravSDF();\\
+  int MaxStage = 0;\\
+  int tempStage;\\
+  for all actor v in TopologyOrderofActors \{\\
+    \hspace*{1 pc} for all actor u which is parent of v \{\\
+    \hspace*{2 pc} if((IsCPUNode(v) \&\& IsCPUNode(u)) || IsGPUNode(v) \&\& IsGPUNode(u))\{\\
+    \hspace*{3 pc} if(mapActor2Partition[v] == mapActor2Partition[u])\{\\
+    \hspace*{4 pc} tempStage = mapActor2Stage[u];\\
+    \hspace*{3 pc} \}else\{\\
+    \hspace*{4 pc} tempStage = mapActor2Stage[u] + 1;\\
+    \hspace*{3 pc} \}\\
+    \hspace*{2 pc} \}else\{\\
+    \hspace*{3 pc} tempStage = mapActor2Stage[u] + 2;\\
+    \hspace*{2 pc} \}\\
+    \hspace*{2 pc} if(tempStage > MaxStage)\{\\
+    \hspace*{3 pc} MaxStage = tempStage;\\
+    \hspace*{2 pc} \}\\
+    \hspace*{1 pc} \}\\
+    \hspace*{1 pc} mapActor2Stage[v] = MaxStage;\\
+  \}
+\end{algorithm}
+
+算法\ref{algo:costream}描述了面向GPU/CPU混合架构的数据流程序阶段赋值过程。对SDF图进行拓扑排序以满足数据的读写规则（行1），依次遍历拓扑排序中的各actor，如果该actor与其父结点同在CPU端或同在GPU端，并且属于同一个划分，那么该actor阶段号与其父结点阶段号相同；如果该actor与其父结点同在CPU端或同在GPU端，但是不属于同一个划分，那么该actor阶段号等于其父结点阶段号加1；如果该actor与其父结点不同在CPU端或GPU端，那么该actor阶段号等于其父结点阶段号加2（行4-21），因为该actor与其父结点不同在CPU端或不同在GPU端则会产生通信，数据通信在软件流水调度过程中需要占用一个阶段号。图\ref{fig:gpucpu}所示为基于GPU/CPU混合架构的阶段赋值结果，其中，actor A、B、C为CPU端结点，actor D、E、F、G、I为GPU端结点，在CPU端，actor A为一个划分，actor B和C属于同一个划分，actor A的阶段号为0，actor B与actor A都是CPU端结点，但不属于同一划分，根据算法\ref{algo:costream}，actor B的阶段号为actor A的阶段号加上1；actor C和actor B都是CPU端结点，并且属于相同的划分，因此，actor C的阶段号等于actor B的阶段号；actor D与actor C分配在不同的平台，即不同在GPU或CPU，actor D的阶段号为actor C的阶段号加上2，因为actor C与actor D的数据通信需要占用一个阶段号，由于GPU的并行规模比较丰富，实验中将分配到GPU并且连通的结点划分同一个阶段执行。
 
 
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/gpucpu.png}\\
+  \caption{基于GPU/CPU混合架构的阶段赋值}\label{fig:gpucpu}
+\end{figure}
+
+在三块NVIDIA Tesla C2050、两块四核CPU为混合架构系统结构上进行测试，如图。选取9个数字多媒体领域的典型算法作为测试程序。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/fusion.png}\\
+  \caption{混合架构系统结构}\label{fig:fusion}
+\end{figure}
+
+图\ref{fig:gm-commu}和图\ref{fig:gths-metis}显示了比较GPU端任务水平分裂算法与通用METIS划分算法的通信量以及执行时间的结果。可见在GPU/CPU混合架构平台下GTHS算法的执行效果优于METIS划分方法。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/gths-metis-commu.png}\\
+  \caption{GTHS与METIS划分通信量比较}\label{fig:gm-commu}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/gths-metis.png}\\
+  \caption{GTHS与METIS划分执行性能比较}\label{fig:gths-metis}
+\end{figure}
+
+对于CPU端任务较重的情况采用CDTB方法进行任务划分，比较CPU端离散任务均衡化算法与传统CPU端单核计算的执行时间。可见CDTB方法更适合于CPU端任务较重且状态为stateful的actor的计算量较小的应用程序。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/bitonicsort.png}\\
+  \caption{BitonicSort采用CDTB算法与传统CPU端单核计算的性能比较}\label{fig:bitonicsort}
+\end{figure}
+
+在GPU/CPU混合架构平台上，采用CPU与GPU协作计算的模式，充分发挥各计算单元的优势，CPU负责控制主程序的流程和串行计算，准备GPU端计算所需的相应的数据并将其传输给GPU，充分利用GPU进行高效的并行计算。图5.4为数据流程序分别采用CPU单核和1个GPU协作计算的模式与CPU单核计算并执行1000次的性能比较示意图，测试程序Beamformer中存在大量离散的状态为stateful的结点，导致执行过程中产生大量的CPU与GPU的数据通信，高额的数据通信开销使程序的性能只提高6.8，相对加速效果不明显。而对于测试程序FFT和ChannelVocoder，程序内部的通信开销相对GPU的计算开销很小，充分利用了GPU强大的并行计算规模，所以加速效果显著。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/cpugpu-cpu.png}\\
+  \caption{CPU与GPU协作计算相对CPU单核的性能比较}\label{fig:cpugpu-cpu}
+\end{figure}
+
+图\ref{fig:3gpu-1gpu}所示为数据流程序分别采用三个GPU与一个GPU并执行1000次的执行性能的比较示意图。从图中可以看出，对于测试用例BeamFormer和BitonicSort，CPU端任务计算量较重，远远大于GPU端的运行时间，采用三个GPU进行并行计算，相对于采用一个GPU计算的加速效果不明显。而对于测试用例Serpent\_full和DES，CPU端任务计算量较轻，远小于GPU端任务的计算时间，采用三个GPU并行计算的加速效果比较显著。
+
+\begin{figure}[htbp]
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/3gpu-1gpu.png}\\
+  \caption{三个GPU与一个GPU执行性能比}\label{fig:3gpu-1gpu}
+\end{figure}
+
+\subsection{基于 COStream 的深度学习程序开发实例}
+\subsubsection{全连接神经网络的并行化分析与设计}
+全连接神经网络由全连接层组成，全连接层的每一个神经元都与上一层的所有神经元相连，用来将该层之前提取到的特征综合起来，本质上是多层感知机。
+
+为处理基于MNIST数据集的手写数字识别问题，设计一个深度为4,每个隐藏层宽度为20的全连接神经网络模型，其输入层宽度为数据集中单张图片的像素数784，输出层宽度为10，依次对应手写图片为数字0到9预测概率。图\ref{fig:dnn}表示的是整个全连接神经网络模型的架构。
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.5\textwidth]{../img/Chap_Application/dnn.png}
+\caption{3隐层每层20节点的全连接神经网络}
+\label{fig:dnn}
+\end{figure}
+
+正向传播计算过程其实是多个函数的复合，图\ref{fig:dnn}描述了本模型中函数如何复合在一起。假设模型中每一层对应的函数依次为$f^{\left (1 \right )}$、$f^{\left (2 \right )}$、$f^{\left (3 \right )}$、$f^{\left (4 \right )}$，则复合成一条$f\left ( x \right )= f^{\left (4 \right )}\left ( f^{\left (3 \right )}\left ( f^{\left (2 \right )}\left ( f^{\left (1 \right )}\left ( x \right ) \right ) \right ) \right )$的计算链，其中x代表输入层的输入，相邻层之间存在数据依赖，形成流水线，而隐藏层、输出层层内的各节点间没有数据依赖关系，即每一层内是由许多可并行操作的节点构成，每个节点执行一个从向量到标量的计算。因此，在上层所有节点完成运算输出结果后，下层中的各个节点可以同时用流入的结果数据展开本层的计算，在数据流模型中以一个图节点代表神经网络模型中的神经元的方式来表示这种层内的数据并行关系。
+
+反向传播计算过程也是多个函数的复合，利用链式求导法则，逐层计算参数梯度，上层内的节点依赖下层各节点参数梯度，还依赖于正向传播时该节点的输入值，同样可以用图节点代表神经元的方式对该层进行数据并行处理。最终，根据误差更新参数。
+
+正向传播和反向传播各层间在时间维度上是串行关系，可以用数据流编程模型提供的软件流水线并行方式进行处理。
+
+对于模型中的参数，由于深度学习模型计算除依赖于上一个计算节点输出的数据流，还依赖于网络模型中的随着计算迭代更新的参数，因此各层节点的参数需要定义在程序中composite结构外的全局区域内，作为全局变量使用。
+
+四层全连接神经网络正向传播的并行化实现包括四个模块，第一个是输入层模块，第二个是隐藏层模块，第三个是输出层模块，第四个是正反向传播过渡模块。
+
+\begin{enumerate}
+\item 输入层模块负责处理数据的输入并在operator的init代码块中定义各层参数的初始化方法。
+\item 隐藏层模块对应神经网络中的三层隐藏层，隐藏层的实现需要构造层composite和节点composite两种composite，层composite利用COStream语句splitjoin中的duplicate重复分发上层流出的数据到节点composite。由于splitjoin语句只支持单输入单输出数据流，因此将正向传播时各个节点的执行结果同参数一样也保存在composite结构外的全局区域，用于在反向传播时进行参数梯度的计算。
+\item 输出层模块负责处理上层传入的数据并得到0到9十个数字的预测概率值，同样以splitjoin对10个输出节点的composite进行调用。
+正反向传播过渡模块负责计算损失函数的误差，并将其传递给反向时的输出层以供计算参数梯度，之后进入反向传播过程。
+
+\end{enumerate}
+
+四层全连接神经网络反向传播的并行化实现包括三个模块，第一个是反向输出层模块，第二个是反向隐藏层模块，第三个是参数更新模块。
+
+\begin{enumerate}
+\item 反向输出层模块连接着正向传播时的过渡层模块，过渡层模块将损失函数误差计算完毕后继续传递给反向输出模块。同样构造层composite和节点composite两种composite，其中节点composite计算本层节点的参数关于损失函数的偏导数以及本层在正向传播中的输入关于损失函数的偏导数；层composite使用COStream语句splitjoin通过duplicate重复分发过渡层模块误差数据流，向节点composite传递误差。
+\item 反向隐藏层节点和反向输出层节点的操作基本一致。
+\item 参数更新模块负责对隐藏层和输出层内的参数更新。参数更新操作必须保证原子性，即一次更新全部参数，不能只更新部分参数，所以模块中由一个单独composite负责更新全部参数，同时在参数更新前计算实际的改变量。
+
+\end{enumerate}
+
+\subsubsection{LeNet-5 卷积神经网络的并行化分析与设计}
+
+当前设计的LeNet-5卷积神经网络模型参照经典LeNet-5卷积神经网络模型，并在其基础上做了结构的微调，当前卷积神经网络模型拥有一个输入层、三个卷积层，两个池化层、两个全连接层和一个输出层，输入层以MNIST数据集中的单张图片作为输入。相对于经典LeNet-5卷积神经网络模型，当前模型增加了一层全连接层，并将全连接层的层内节点数缩减至20，其余结构均保持不变。图\ref{fig:cnn}是该模型的结构示意图。
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.5\textwidth]{../img/Chap_Application/cnn.png}
+\caption{LeNet-5卷积神经网络模型的结构示意图}
+\label{fig:cnn}
+\end{figure}
+
+在图\ref{fig:cnn}中，模型输入的是一个单通道的28×28大小的图片数组数据，第一卷积层被设定为用6组每组一个5×5大小的卷积核进行单步卷积计算，卷积完毕并经ReLU激励后得到6个24×24大小的输出数据，经第一次2×2最大池化后得到6个12×12的输出数据，第二卷积层被设定为用4组每组6个5×5大小的卷积核进行单步卷积计算，完毕后经ReLU激励得到4个8×8大小的输出数据，再经第二次2×2最大池化后得到4个4×4大小的输出数据，第三卷积层被设定为用40组每组4个4×4大小的卷积核进行单步卷积计算，得到一个有40个数据的一维向量，这40个数据将是全连接层的输入数据，两个全连接层均有二十个节点，输出层则有10个节点，两个全连接层和一个输出层在经历了加权求和并以Sigmoid激励函数激励的过程后，最终由输出层输出节点对应数字的预测概率值
+
+在LeNet-5卷积神经网络模型的正向传播过程中，各个卷积层的每一组的每一个卷积核在对输入的数据进行卷积处理时，互相之间均不存在数据依赖，因此可以用数据并行的方式将其在数据流编程模型中进行表示。池化层每次的输入的都是一个以三维数组表示的多个二维矩阵，其中各个二维数据的池化过程互不相关，所以可以同样用数据并行的方式对其进行表示。全连接层的并行化方法已经在本小节第一部分描述，各层的不同节点间也是用数据并行的方式表示。
+
+在LeNet-5卷积神经网络模型的反向传播过程中，误差先通过全连接层进行传播，此过程的并行化方法同本小节第一部分所述一致，当误差传递至卷积层时，卷积层节点需要经过三个过程完成计算过程，分别是： 
+\begin{enumerate}
+\item 用传入的误差与正向传播时输入该层节点的数据做卷积操作的方式得到卷积核weight权重参数的梯度。
+\item 用对误差矩阵各项求和的方式得到卷积核组的bias偏置参数的梯度。
+\item 用转置后的卷积核矩阵与用零填充过的误差矩阵做卷积操作的方式得到在正向传播时位于该层上层的节点所需要的误差。
+\end{enumerate}
+这三个过程都只需传入的误差或是正向传播时临时保存的各层输出值，其中任一过程所需数据不依赖于其他过程，对此可采用数据并行的方式进行并行化。
+
+误差在经过卷积层的反向传播处理后，输出的是反向池化层所需的误差，此时误差和池化层正向传播的输出结果维数一致，都是以三维数组形式表示的多个二维矩阵，其中每个二维矩阵在反向池化层中需要进行一次上采样过程，并将采样结果与ReLU激励函数对池化层输入数据的偏导数做一次Hadamard积运算，才能得到下一个反向卷积层所需的误差值。这个过程没有数据依赖，同样可以用数据并行的方式，对三维数组中的每个二维矩阵同时进行处理。
+
+将整个LeNet-5卷积神经网络模型的正向传播和反向传播连接起来看，各层间都是需要上层处理完成后传入处理结果才能执行本层，彼此间有着单向的数据依赖关系，因此可以用流水线并行的方式，将每层的处理过程抽象为流水线的一个阶段，到达并行化的目的。
+
+对于模型中的参数值，由于正反向传播过程均需要使用，所以各个卷积层的卷积核参数和卷积层组参数以及全接连层各节点的参数均作为全局变量保存在composite体外的全局区域中，全局区域同样还临时保存着正向传播过程中所有模块中各层的输出结果以供反向传播过程计算使用。
+
+LeNet-5卷积神经网络正向转播过程包括七个模块，分别是输入层模块、卷积层模块、池化层模块、卷积与全连接过渡模块、全连接模块、输出层模块和正反向传播过渡模块。
+输入层模块负责获取28×28大小的图片数组数据并传递给下层，同时要在模型的第一次执行前初始化所有卷积核的参数以及全连接层节点的参数，此过程通过设计inlayer comoposite结构，在inlayer composite内部的init语句块内以满足高斯分布的随机值初始化各个参数，在work语句块内读取图片数组数据。
+
+\begin{enumerate}
+\item 输入层模块
+
+输入层模块负责获取28×28大小的图片数组数据并传递给下层，同时要在模型
+的第一次执行前初始化所有卷积核的参数以及全连接层节点的参数，此过程通过设计inlayer comoposite结构，在inlayer composite内部的init语句块内以满足高斯分布的随机值初始化各个参数，在work语句块内读取图片数组数据。
+
+\item 卷积层模块
+
+卷积层模块负责对输入层中的三维矩阵进行卷积操作，此时把三维矩阵看成是多通道的二维矩阵，其第一维度通道数，即二维矩阵的个数与每组卷积核的个数一致，组内的各个卷积核以一一对应的方式对各个二维矩阵进行卷积操作，每组多个卷积核的单次卷积操作完成后，需要将其卷积结果相加并加上该组bias偏置参数得到带激励的输出，再经ReLU激励函数激励后得到最终的输出结果。整个层的卷积过程在COStream中可以借助两层splitjoin结构的嵌套进行描述，最外层的conv\_layer composite中用pipeline的形式分别对卷积组conv\_group composite和conv\_bias composite进行add操作，conv\_bias comoposite负责对每组各个卷积核卷积后的输出结果进行求和，并对求和结果进行ReLU激励，conv\_group composite负责调用conv\_kernel composite进行卷积计算。conv\_layer composite以splitjoin的duplicate调用形式对上层传入的三维矩阵进行复制，复制后的各个三维矩阵分别流入不同组的conv\_goup composite中，调用conv\_group composite时传入group\_index用于定位全局区域中该组对应的bias偏置参数。conv\_group composite则以splitjoin的roundrobin调用形式对传入的三维矩阵进行切割，切割成的多个二维矩阵分别流入对应的conv\_kernel composite中，以上就是卷积层两次splitjoin嵌套中的输入数据变化情况。conv\_group composite在调用conv\_kernel composite时则要传入group\_index和kernel\_index，用以定位在全局区域中卷积核的weight权重参数，传入size参数，用以确定被卷积的矩阵的大小。图\ref{fig:cnn_conv_layer}是卷积层模块中各个composite间的结构关系示意图。
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.5\textwidth]{../img/Chap_Application/cnn_conv_layer.png}
+\caption{卷积层模块中composite间的结构关系示意图}
+\label{fig:cnn_conv_layer}
+\end{figure}
+
+\item 池化层模块
+
+池化层模块负责将输入的三维矩阵按不同通道分成多个二维矩阵，并分别以2×2大小的池化区域进行最大池化，池化过程同样需要两个composite结构，一个是pool\_layer composite，一个是pool composite，pool\_layer composite内部使用split的roundrobin调用形式对单通道池化过程的pool composite进行add操作，将不同通道的二维矩阵数据发送至不同的pool composite进行池化操作。池化层的pool\_layer composite在对pool composite进行add操作时，不需要传递表示位置顺序的index参数，因为splitjoin语句中的split和join以相同的操作顺序对被add的composite进行数据分发和合并，即split切割后的第一批数据被对应节点处理完毕后所生成的数据，仍会被join第一个处理，因此COStream中的splitjoin操作保证了数据间的相对顺序不变。图\ref{fig:cnn_pooling_layer}是池化层模块中两类composite的结构关系。
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.5\textwidth]{../img/Chap_Application/cnn_pooling_layer.png}
+\caption{池化层模块中composite间的结构关系示意图}
+\label{fig:cnn_pooling_layer}
+\end{figure}
+
+\item 卷积与全连接过渡模块
+
+卷积与全连接过渡模块充当全连接层的输入层，模块只负责将最后一层卷积层的输出结果转发给下层全连接层，同时记录此输出结果至全局区域供反向传播时第一层全连接层参数梯度的计算使用。
+
+\item 全连接模块
+
+全连接模块同本小节第一部分所述的全连接神经网络中的隐藏层模块基本相同，其中包含了两个全连接层，每个全连接层有20个节点，每一层的层composite都通过splitjoin的duplicate调用方式完成层内各composite节点的add操作，同时传入index参数确定节点的weight、bias参数在全局区域的位置，传入size参数确定节点composite一次运行所需的数据量。层内的composite负责对输入加权求和并用Sigmoid激励函数激励。
+
+\item 输出层模块
+
+输出层模块上层与全连接模块相连，负责输出0到9十个数字的预测概率值，所以输出层模块内的输出层有十个输出节点，每个节点输出一个数字的预测概率值。具体操作同全连接层一样，都是以splitjoin的duplicate调用进行层内节点composite的add操作。调用时需要给节点composite传入index参数和size参数，为其提供全局区域参数位置和待处理数据的大小。
+
+\item 正反向传播过渡模块
+
+正反向传播过渡模块连接的是正向全连接层和反向全连接层，该模块负责计算出基于均方差损失函数得出的输出值与实际label目标值相减后所得的误差值，因此构造一个diff composite节点即可满足要求，调用此composite节点时需要传入与上层节点输出值大小一致的size参数，即label目标值维数，同时该节点输出值的数量也和label目标值维数一致。
+\end{enumerate}
+
+由于反向传播过程在对卷积层各个卷积核以及全连接层各个节点的参数梯度计算时，依赖于当前卷积层或全连接层所对应层的输入数据，所以卷积层模块、池化层模块和全连接模块的各层在正向传播时都在程序的全局区域中保存了临时的输出结果，其中卷积层模块和全连接层模块需要记录的是该层未通过激励函数激励的输出值，和已通过激励函数激励的激励值。由于池化层模块中仅存在池化操作，且池化结果不需要激励函数的激励处理，因此该层只需记录经过池化后的输出值。
+
+LeNet-5卷积神经网络反向传播过程包括七个模块，分别是反向输出层模块、反向全连接模块、反向全连接卷积过渡模块、反向卷积层模块、反向卷积核梯度合并模块、反向池化层模块和参数更新模块。反向传播时，误差以参数梯度的形式在各层间传播，同本小节第一部分所述的全连接神经网络的反向传播过程一样，记损失函数对该层输出值的偏导数为$\delta$，若已知卷积层的$\delta$值，则该层中的各卷积核组的bias偏置参数的梯度等于相对应的$\delta$矩阵的各元素之和，组内各卷积核的weight权重参数的梯度等于该卷积层输入值与$\delta$值经卷积后的结果，因此反向传播时反向卷积层可以通过$\delta$值计算该层参数的梯度。
+
+现考虑已知第m层卷积层的$\delta _{m}$如何计算出上一层第m-1层的池化层所需的$\delta _{m - 1}$，为了计算这个$\delta _{m - 1}$，需要利用复合函数求导的链式法则进行分析，记本层输出值为$Z _{m}$，上层池化层的输出值为$Z _{m - 1}$，卷积核weight权重参数为W，W的转置为$W ^{T}$，则$\delta _{m - 1}$等于将$\delta _{m}$用零扩展得到的矩阵与$W ^{T}$卷积运算再同$Z _{m - 1}$做Hadamard积运算后的结果。再考虑已知第m-1层的池化层的$\delta _{m - 1}$，如何计算出上层第m-2层的卷积层所需的$\delta _{m - 2}$值，由于采用的是2×2最大池化的方式进行池化，反向传播时池化层的$\delta _{m - 1}$的必须要经过上采样还原成池化层输入值的大小，同时由于第m-2层卷积层的卷积结果被ReLU激励函数激励过，记ReLU对x的导数为R(x)，第m-2层卷积层的卷积结果为$Z _{m - 2}$，则$\delta _{m - 2}$等于还原后的值与R($Z _{m - 2}$)做Hadamard积运算的结果。以上就是反向传播时，卷积层计算对上层池化层$\delta$和池化层计算上层卷积层$\delta$的过程。以数据流编程模型的角度考虑，$\delta$就是LeNet-5卷积神经网络在反向传播阶段各层间流动的值。
+
+\begin{enumerate}
+
+\item 反向输出层模块
+
+反向输出层模块接收正反向过渡模块的输出值，该模块由反向输出层bout\_layer composite和层内节点bout composite两个composite构成，bout\_layer composite以splitjoin的roundrobin调用方式，将传入的误差值以带index参数的方式分批传给bout composite，bout composite内部计算对应输出层节点的weight和bias参数梯度值，并传出计算完毕的bias梯度值作为下一模块的输入。
+
+\item 反向全连接模块
+
+反向全连接模块中有两个反向全连接层，每层都有各自的bfullconn\_layer composite和节点bfullconn\_node composite，其中bfullconn\_layer composite以splitjoin的duplicate调用方式，复制传入的全部数据给层内的20个bfullconn\_node composite，bfullconn\_node composite计算各节点对应的weight参数和bias参数梯度。
+
+\item 反向全连接卷积过渡模块
+
+由于反向全连接层中各层间传递的是本层的$\delta$值，传入到上层后由上层负责计算上层自己的$\delta$值，而反向卷积层和反向池化层之间传递的是已经在本层计算完毕的上层$\delta$值，因此需要一个过渡层完成这种差异的转变。反向全连接卷积过渡层模块只完成计算与全连接层相连的卷积层的$\delta$值的任务，因此只用一个bconv\_fconn composite完成这个过程。
+
+\item 反向卷积层模块
+
+反向卷积层模块中的各个卷积层有三个任务要处理，分别是计算当前卷积层组的bias参数梯度、计算当前卷积层的组内各通道卷积核的weight参数梯度以及计算反向池化层的$\delta$值。这三个任务之间没有数据依赖关系，因此模块中的bconv\_layer composite以splitjoin的roundrobin调用方式，将每组卷积核对应的$\delta$数据切割后分批传给各个bconv\_group composite。bconv\_group composite在内部以splitjoin的duplicate调用方式，将每组对应的$\delta$数据重复分发给bconv\_bias composite、bconv\_weight composite和bconv\_delta composite三种任务composite，三种任务composite分别负责bias参数梯度的计算、weight参数梯度的计算和$\delta$值的计算，由于只有$\delta$值需要传出，因此bconv\_bias composite和bconv\_weight composite只需要传递一个代表任务完成的信号数据给join节点，bconv\_delta composite则要传递计算出的反向池化层的$\delta$值。
+
+\item 反向卷积核梯度合并模块
+
+反向卷积核梯度合并模块接收反向卷积模块的输出，其中前两个数据是信号数据，处理时直接舍去，其余数据是反向池化层的$\delta$值。由于反向卷积层模块是以分组的形式在各组内计算自己组对反向池化层的$\delta$值，因此需要将各组间相同通道对应的$\delta$值相加，合并成最终的$\delta$值。此模块中包括两个composite，一个是merge\_group composite，负责以splitjoin的roundrobin调用形式提取各卷积组相同通道的输出数据，传入对应的merge composite，每个merge composite完成一个通道的$\delta$值合并操作，合并完成后通过join节点连接合并值再传递给反向池化层模块。
+
+\item 反向池化层模块
+ 
+反向池化层模块只负责用传入的反向池化层$\delta$值计算传入下一反向卷积层$\delta$值，计算需要先对池化层$\delta$值进行上采样操作再乘上卷积时ReLU激励函数对卷积层卷积结果的导数，$\delta$的各通道值在进行次操作时可以同时进行，因此本模块包括pool\_layer composite和pool composite两个composite结构，pool\_layer composite利用splitjoin的roundrobin调用提取各通道的$\delta$值传递给各通道对应的pool composite，pool composite在内部实现对$\delta$值的具体操作。
+
+\item 参数更新模块
+
+参数更新模块负责在一次完整的正向传播和反向传播执行完毕后，对全局区域中卷积核的weight参数、卷积组的bias参数以及全连接层节点的参数进行梯度下降更新，同时参数更新前需要计算实际的改变量，若所有参数的改变量小于某一指定值，则停止模型的训练。
+
+\end{enumerate}
 
 \subsection{相关工作}
 
