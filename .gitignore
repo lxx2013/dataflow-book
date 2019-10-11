@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+*.out
+*.fdb_latexmk
+*.fls
+*.gz
+*.toc
+*.bat
