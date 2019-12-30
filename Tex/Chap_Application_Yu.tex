@@ -480,16 +480,27 @@ GPU端允许扩大的倍数为N2，N2需满足公式\ref{eq:2.2}和公式\ref{eq
 GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务的划分，而传统的任务划分方法对任务分类处理后分配到CPU端的各个离散结点未进行划分处理，均由一个CPU核控制计算，如果该CPU核的工作量过大时就会影响整个程序的执行效率。数据流程序CDTB算法针对这些CPU端的离散结点，结合复制分裂算法，选择合适CPU核，采用贪心的思想，均衡地将各计算结点分成若干个划分并将各划分映射到相应的CPU核上，保证各CPU核的负载均衡并提高各CPU核的利用率。基于GPU/CPU混合架构的数据流程序CPU端离散任务的均衡化过程主要包括以下三个阶段：
 
 \begin{itemize}	
-  \item {\bf CPU核数的确定}：图3.2为CPU核数确定过程的流程示意图。分别计算CPU端任务总的执行时间CPUTime、GPU端任务总的计算时间GPUTime以及数据流程序总的通信时间CommTime，如果CPUTime小于GPUTime和CommTime的最大值，选择CPU的核数为1，即分配到CPU端所有actor均由一个CPU核控制执行；如果CPUTime大于GPUTime和CommTime的最大值且分配到CPU端的actor个数为1，该actor的状态为stateful即该actor不可进行分裂，则选择CPU的核数为1；如果分配到CPU端的actor个数大于1或者存在工作量较大的状态为stateless的actor，根据公式3.1计算出应用程序执行时所需要的CPU核数NCPUcore；如果所求得的CPU核数大于系统可用的核数，则设置所需的CPU核数为系统可用的核数。通过CPU核数的确定，充分利用系统的计算资源，减小系统计算资源的浪费。
+  \item {\bf CPU核数的确定}：图\ref{fig:3.2}为CPU核数确定过程的流程示意图。分别计算CPU端任务总的执行时间CPUTime、GPU端任务总的计算时间GPUTime以及数据流程序总的通信时间CommTime，如果CPUTime小于GPUTime和CommTime的最大值，选择CPU的核数为1，即分配到CPU端所有actor均由一个CPU核控制执行；如果CPUTime大于GPUTime和CommTime的最大值且分配到CPU端的actor个数为1，该actor的状态为stateful即该actor不可进行分裂，则选择CPU的核数为1；如果分配到CPU端的actor个数大于1或者存在工作量较大的状态为stateless的actor，根据公式\ref{eq:3.1}计算出应用程序执行时所需要的CPU核数NCPUcore；如果所求得的CPU核数大于系统可用的核数，则设置所需的CPU核数为系统可用的核数。通过CPU核数的确定，充分利用系统的计算资源，减小系统计算资源的浪费。
 
   \item {\bf CPU端工作量相对较大且状态为stateless的actor复制分裂}: 根据CPU端所有actor总的工作量CPUTotalWork和计算出所需的CPU核数NCPUcore，结合公式\ref{eq:3.2}求得理论上分配给每个核的最大工作量MaxTotalWork，遍历CPU端的状态为stateless的actor，根据工作量估计求出该actor的工作量大小，如果其工作量大于MaxTotalWork，则利用复制分裂算法对该actor进行复制分裂操作，将新生成的actor与其模板actor的父结点和子结点连接以保证SDF的连通性，经过多次反复的复制分裂操作使CPU端每个状态为stateless的actor的工作量都小于MaxTotalWork。
   
   \begin{equation}
-    MaxTotalWork = CPUTotalWork/N_{CPL} \label{eq:3.2}
+    N_{CPUcore} = CPUTime/Max(GPUTime,CommTime) \label{eq:3.1}
   \end{equation}
 
-  \item {\bf CPU端各离散的actor与CPU核间的映射}: 该过程采用贪心的思想，遍历CPU端actor并根据工作量估计计算出该actor的工作量，选择当前各自总工作量最小的CPU核，将该actor划分到当前总工作量最小的CPU核上，完成该actor与CPU核映射。算法\ref{algo:cpureflect}描述了CPU端离散任务均衡化具体过程的实现细节，该方法适合于CPU端计算成为软件流水调度过程中数据流程序整体效率瓶颈的情况。根据公式3.1和公式3.2分别计算出该应用程序所需的CPU核数NCPUcore和每个CPU核理论最大的总的工作量MaxTotalWork，遍历CPU端所有状态为stateless的actor结点，针对工作量workvalue大于MaxTotalWork的actor，通过CreateNewActor函数对该actor进行分裂操作并将新创建的actor与其模板actor的父结点和子结点连接（行1-11）。遍历所有CPU端actor，选择当前总的工作量估计最小的CPU核并完成该actor与该CPU核的映射（行12-17）。
+  \begin{equation}
+    MaxTotalWork = CPUTotalWork/N_{CPUcore} \label{eq:3.2}
+  \end{equation}
+
+  \item {\bf CPU端各离散的actor与CPU核间的映射}: 该过程采用贪心的思想，遍历CPU端actor并根据工作量估计计算出该actor的工作量，选择当前各自总工作量最小的CPU核，将该actor划分到当前总工作量最小的CPU核上，完成该actor与CPU核映射。算法\ref{algo:cpureflect}描述了CPU端离散任务均衡化具体过程的实现细节，该方法适合于CPU端计算成为软件流水调度过程中数据流程序整体效率瓶颈的情况。根据公式\ref{eq:3.1}和公式\ref{eq:3.2}分别计算出该应用程序所需的CPU核数NCPUcore和每个CPU核理论最大的总的工作量MaxTotalWork，遍历CPU端所有状态为stateless的actor结点，针对工作量workvalue大于MaxTotalWork的actor，通过CreateNewActor函数对该actor进行分裂操作并将新创建的actor与其模板actor的父结点和子结点连接（行1-11）。遍历所有CPU端actor，选择当前总的工作量估计最小的CPU核并完成该actor与该CPU核的映射（行12-17）。
 \end{itemize}
+
+\begin{figure}[htbp] 
+  \centering
+  % Requires \usepackage{graphicx}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/3-2.png}\\
+  \caption{CPU核数确定过程的流程示意图}\label{fig:3.2}
+\end{figure}
 
 \begin{algorithm}
   \caption{CPU Disperse Tasks Balancing Algorithm}
@@ -523,10 +534,6 @@ GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务�
 
   \item {\bf 负载均衡问题}: 软件流水调度过程中，负载均衡是影响应用程序整体执行效率的重要因素。在GPU/CPU混合架构系统平台下，由于GPU与CPU计算能力的不对等，如果各个线程的负载不均衡，则会带来多个线程忙等的现象，增加程序的同步开销。该优化框架通过GPU端任务水平分裂算法和CPU端离散任务均衡化算法，实现了GPU端计算、CPU端计算和异构通信的相对均衡，同时降低了应用程序的通信量。
   
-  \begin{equation}
-    MaxTotalWork = CPUTotalWork/N_{CPL} \label{eq:3.2}
-  \end{equation}
-
   \item {\bf 通信开销问题}: 在GPU/CPU混合架构中，异构通信占用软件流水调度的一个阶段，达到软件流水满状态，即计算任务稳态执行阶段，CPU端任务的计算、GPU端任务的计算以及CPU与GPU间的数据通信是并行执行的，高额的通信开销也会降低应用程序的执行效率。该优化框架采用任务分类方法，结合任务的计算特点，完成任务的分类，同时也降低异构的通信开销；GPU端任务的水平分裂，将GPU端任务均衡分裂到各GPU，避免了GPU与GPU间的高额通信，达到降低通信开销的目的。
 \end{itemize}
 
@@ -596,20 +603,13 @@ GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务�
 
 对于CPU端任务较重的情况采用CDTB方法进行任务划分，比较CPU端离散任务均衡化算法与传统CPU端单核计算的执行时间。可见CDTB方法更适合于CPU端任务较重且状态为stateful的actor的计算量较小的应用程序。
 
-\begin{figure}[htbp]
-  \centering
-  % Requires \usepackage{graphicx}
-  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/bitonicsort.png}\\
-  \caption{BitonicSort采用CDTB算法与传统CPU端单核计算的性能比较}\label{fig:bitonicsort}
-\end{figure}
-
-在GPU/CPU混合架构平台上，采用CPU与GPU协作计算的模式，充分发挥各计算单元的优势，CPU负责控制主程序的流程和串行计算，准备GPU端计算所需的相应的数据并将其传输给GPU，充分利用GPU进行高效的并行计算。图5.4为数据流程序分别采用CPU单核和1个GPU协作计算的模式与CPU单核计算并执行1000次的性能比较示意图，测试程序Beamformer中存在大量离散的状态为stateful的结点，导致执行过程中产生大量的CPU与GPU的数据通信，高额的数据通信开销使程序的性能只提高6.8，相对加速效果不明显。而对于测试程序FFT和ChannelVocoder，程序内部的通信开销相对GPU的计算开销很小，充分利用了GPU强大的并行计算规模，所以加速效果显著。
+在GPU/CPU混合架构平台上，采用CPU与GPU协作计算的模式，充分发挥各计算单元的优势，CPU负责控制主程序的流程和串行计算，准备GPU端计算所需的相应的数据并将其传输给GPU，充分利用GPU进行高效的并行计算。图\ref{fig:5.4}为数据流程序分别采用CPU单核和1个GPU协作计算的模式与CPU单核计算并执行1000次的性能比较示意图，测试程序Beamformer中存在大量离散的状态为stateful的结点，导致执行过程中产生大量的CPU与GPU的数据通信，高额的数据通信开销使程序的性能只提高6.8，相对加速效果不明显。而对于测试程序FFT和ChannelVocoder，程序内部的通信开销相对GPU的计算开销很小，充分利用了GPU强大的并行计算规模，所以加速效果显著。
 
 \begin{figure}[htbp]
   \centering
   % Requires \usepackage{graphicx}
-  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/cpugpu-cpu.png}\\
-  \caption{CPU与GPU协作计算相对CPU单核的性能比较}\label{fig:cpugpu-cpu}
+  \includegraphics[width=0.8\textwidth]{Img/Chap_Application/Yu/5-4.png}\\
+  \caption{CPU与GPU协作计算相对CPU单核的性能比较}\label{fig:5.4}
 \end{figure}
 
 图\ref{fig:3gpu-1gpu}所示为数据流程序分别采用三个GPU与一个GPU并执行1000次的执行性能的比较示意图。从图中可以看出，对于测试用例BeamFormer和BitonicSort，CPU端任务计算量较重，远远大于GPU端的运行时间，采用三个GPU进行并行计算，相对于采用一个GPU计算的加速效果不明显。而对于测试用例Serpent\_full和DES，CPU端任务计算量较轻，远小于GPU端任务的计算时间，采用三个GPU并行计算的加速效果比较显著。
