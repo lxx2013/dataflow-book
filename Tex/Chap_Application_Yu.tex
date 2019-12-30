@@ -275,7 +275,7 @@ FileWriter(B)(“result.txt”);
 
 行1表示将data.bin文件中的数据读入到数据流A中，行3表示将处理后输出的流B中的数据保存至文件result.txt。
 
-此外，仍然存在许多常用能性 Composite有待于内置在COStream编程语言中， 实验室的全体师生会积极进行版本迭代，进一步改进和优化COStream的编程语言结构设计。 
+此外，仍然存在许多常用功能性 Composite有待于内置在COStream编程语言中， 实验室的全体师生会积极进行版本迭代，进一步改进和优化COStream的编程语言结构设计。 
 
 \subsection{COStream 编译器框架}
 
@@ -435,37 +435,37 @@ GPU端允许扩大的倍数为N2，N2需满足公式\ref{eq:2.2}和公式\ref{eq
   9   \hspace*{2 pc} mapActor2NewActor.insert(v,m);\\
   10  \hspace*{2 pc} ++index;\\
   11  \hspace*{1 pc} end for\\
-  12 end for\\
-  13 for all actor u in GPUNode[] do\\
+  12end for\\
+  13for all actor u in GPUNode[] do\\
   14  \hspace*{1 pc} if(IsGPUNode(u.parent))then\\
-  15  \hspace*{1 pc} int index = 1;\\
-  16  \hspace*{1 pc} for ;index < GPUNumber;++index do\\
-  17  \hspace*{2 pc} Actor a = FindNewActor(u,index);\\
-  18  \hspace*{2 pc} Actor b= FindNewActor(u.parent,index);\\
-  19  \hspace*{2 pc} a.parent = b;\\
-  20  \hspace*{1 pc} end for\\
+  15  \hspace*{2 pc} int index = 1;\\
+  16  \hspace*{2 pc} for ;index < GPUNumber;++index do\{\\
+  17  \hspace*{3 pc} Actor a = FindNewActor(u,index);\\
+  18  \hspace*{3 pc} Actor b= FindNewActor(u.parent,index);\\
+  19  \hspace*{3 pc} a.parent = b;\\
+  20  \hspace*{2 pc} end for\\
   21  \hspace*{1 pc} else\\
-  22  \hspace*{1 pc} int index = 1;\\
-  23  \hspace*{1 pc} for ; index < GPUNumber; ++index do\\
-  24  \hspace*{2 pc} Actor a = FindNewActor(u,index);\\
-  25  \hspace*{2 pc} a.parent = u.parent;\\
-  26  \hspace*{1 pc} end for\\
+  22  \hspace*{2 pc} int index = 1;\\
+  23  \hspace*{2 pc} for ; index < GPUNumber; ++index do\\
+  24  \hspace*{3 pc} Actor a = FindNewActor(u,index);\\
+  25  \hspace*{3 pc} a.parent = u.parent;\\
+  26  \hspace*{2 pc} end for\\
   27  \hspace*{1 pc} end if\\
   28  \hspace*{1 pc} if(IsGPUNode(u.child))then\\
-  29  \hspace*{1 pc} int index = 1;\\
-  30  \hspace*{1 pc} for ;index < GPUNumber;++index do\\
-  31  \hspace*{2 pc} Actor a = FindNewActor(u,index);\\
-  32  \hspace*{2 pc} Actor b= FindNewActor(u.child,index);\\
-  33  \hspace*{2 pc} a.child = b;\\
-  34  \hspace*{1 pc} end for\\
+  29  \hspace*{2 pc} int index = 1;\\
+  30  \hspace*{2 pc} for ;index < GPUNumber;++index do\\
+  31  \hspace*{3 pc} Actor a = FindNewActor(u,index);\\
+  32  \hspace*{3 pc} Actor b= FindNewActor(u.child,index);\\
+  33  \hspace*{3 pc} a.child = b;\\
+  34  \hspace*{2 pc} end for\\
   35  \hspace*{1 pc} else\\
-  36  \hspace*{1 pc} int index = 1;\\
-  37  \hspace*{1 pc} for ; index < GPUNumber; ++index do\\
-  38  \hspace*{2 pc} Actor a = FindNewActor(u,index);\\
-  39  \hspace*{2 pc} a.child = u.child;\\
-  40  \hspace*{1 pc} end for\\
+  36  \hspace*{2 pc} int index = 1;\\
+  37  \hspace*{2 pc} for ; index < GPUNumber; ++index do\\
+  38  \hspace*{3 pc} Actor a = FindNewActor(u,index);\\
+  39  \hspace*{3 pc} a.child = u.child;\\
+  40  \hspace*{2 pc} end for\\
   41  \hspace*{1 pc} end if\\
-  42 end for
+  42end for
 \end{breakablealgorithm}
 
 
@@ -503,7 +503,7 @@ GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务�
 \end{figure}
 
 \begin{algorithm}
-  \caption{CPU Disperse Tasks Balancing Algorithm}
+  \caption{CPU端离散任务均衡算法}
   \label{algo:cpureflect}
   Input: CPUNode[]\\
   Output: mapActor2Partition(actor:partition)\\
@@ -622,10 +622,25 @@ GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务�
 \end{figure}
 
 \subsection{基于 COStream 的深度学习程序开发实例}
-\subsubsection{全连接神经网络的并行化分析与设计}
-全连接神经网络由全连接层组成，全连接层的每一个神经元都与上一层的所有神经元相连，用来将该层之前提取到的特征综合起来，本质上是多层感知机。
 
-为处理基于MNIST数据集的手写数字识别问题，设计一个深度为4,每个隐藏层宽度为20的全连接神经网络模型，其输入层宽度为数据集中单张图片的像素数784，输出层宽度为10，依次对应手写图片为数字0到9预测概率。图\ref{fig:dnn}表示的是整个全连接神经网络模型的架构。
+深度学习模型本质是数学模型，在基于COStream实现深度学习模型时，只要将深度学习中的数学逻辑拆分成独立的计算节点并明确它们之间的数据依赖关系，其实不难实现。这里按照网络层，如全连接层、卷积层、池化层，来拆分整个模型。
+
+训练模型阶段主要有两部分逻辑，正向传播和反向传播，在接下来的章节中将逐步介绍每一类网络层在正向传播和反向传播中计算节点的实现。
+
+对于正向传播，其计算过程是多个函数的复合，图\ref{fig:dnn}描述了本模型中函数如何复合在一起。假设模型中每一层对应的函数依次为$f^{\left (1 \right )}$、$f^{\left (2 \right )}$、$f^{\left (3 \right )}$、$f^{\left (4 \right )}$，则复合成一条$f\left ( x \right )= f^{\left (4 \right )}\left ( f^{\left (3 \right )}\left ( f^{\left (2 \right )}\left ( f^{\left (1 \right )}\left ( x \right ) \right ) \right ) \right )$的计算链，其中x代表输入层的输入，相邻层之间存在数据依赖，形成流水线。
+
+对于反向传播，其计算过程也是多个函数的复合，利用链式求导法则，按照网络模型反向逐层计算并传递误差（由于正向传播和反向传播计算过程中层的计算顺序是相反的，因此在下文中将始终按照网络模型中定义的层间关系来表述），需要分别计算该层参数和该层输入关于损失函数的偏导数，该计算依赖于模型中该层下一层传入的输入误差、正向传播时该层的输入值和参数矩阵。最终，根据误差更新参数。
+
+正向传播和反向传播各层间在时间维度上是串行关系，可以用数据流编程模型提供的软件流水线并行方式进行处理。
+
+对于模型中的参数，由于计算除依赖于上一个计算节点输出的数据流，还依赖于网络模型中的随着计算迭代更新的参数，因此将各层节点的参数定义为全局变量。
+
+尽管每一类网络层对应的计算节点的数学逻辑不同，但是其正向传播和反向传播对应的计算节点的输入流和输出流遵循相同的规则。即，正向传播有一个输入流，为上一层的正向传播计算节点的输出流或由训练集构成的数据流；有两个输出流，将计算结果分别传递给下一层对应的正向传播和反向传播计算节点。反向传播有两个输入流，其一为下一层对应的反向传播计算节点传入该层的误差，其二为正向传播过程中传入该层的输入；有一个输出流，将该层计算的误差继续传递上一层对应的反向传播计算节点。
+
+\subsubsection{全连接神经网络的并行化分析与设计}
+全连接神经网络由全连接层组成，全连接层的每一个神经元都与上一层的所有神经元相连，用来将该层之前提取到的特征综合起来，本质是多层感知机。
+
+为处理基于MNIST数据集的手写数字识别问题，设计一个具有3层隐藏层,每个隐藏层包含20个神经元的全连接神经网络模型，其输入层神经元的数量对应数据集中单张图片的像素数784($28\ast28$)，输出层的神经元数量为10，依次对应手写图片为数字0到9预测概率。图\ref{fig:dnn}为该全连接神经网络模型。
 
 \begin{figure}[!t]
 \centering
@@ -634,147 +649,9 @@ GPU/CPU混合架构平台下，GPU端任务的水平分裂完成了GPU端任务�
 \label{fig:dnn}
 \end{figure}
 
-正向传播计算过程其实是多个函数的复合，图\ref{fig:dnn}描述了本模型中函数如何复合在一起。假设模型中每一层对应的函数依次为$f^{\left (1 \right )}$、$f^{\left (2 \right )}$、$f^{\left (3 \right )}$、$f^{\left (4 \right )}$，则复合成一条$f\left ( x \right )= f^{\left (4 \right )}\left ( f^{\left (3 \right )}\left ( f^{\left (2 \right )}\left ( f^{\left (1 \right )}\left ( x \right ) \right ) \right ) \right )$的计算链，其中x代表输入层的输入，相邻层之间存在数据依赖，形成流水线，而隐藏层、输出层层内的各节点间没有数据依赖关系，即每一层内是由许多可并行操作的节点构成，每个节点执行一个从向量到标量的计算。因此，在上层所有节点完成运算输出结果后，下层中的各个节点可以同时用流入的结果数据展开本层的计算，在数据流模型中以一个图节点代表神经网络模型中的神经元的方式来表示这种层内的数据并行关系。
+全连接层正向传播过程执行的计算实际为矩阵乘法，即传入该层的数据流乘本层参数矩阵，可以将其拆分成多个粒度更小的、逻辑为向量乘法的计算节点来实现，不难发现拆分后的计算节点间没有数据依赖关系，因此可以并行地执行。
 
-反向传播计算过程也是多个函数的复合，利用链式求导法则，逐层计算参数梯度，上层内的节点依赖下层各节点参数梯度，还依赖于正向传播时该节点的输入值，同样可以用图节点代表神经元的方式对该层进行数据并行处理。最终，根据误差更新参数。
-
-正向传播和反向传播各层间在时间维度上是串行关系，可以用数据流编程模型提供的软件流水线并行方式进行处理。
-
-对于模型中的参数，由于深度学习模型计算除依赖于上一个计算节点输出的数据流，还依赖于网络模型中的随着计算迭代更新的参数，因此各层节点的参数需要定义在程序中composite结构外的全局区域内，作为全局变量使用。
-
-四层全连接神经网络正向传播的并行化实现包括四个模块，第一个是输入层模块，第二个是隐藏层模块，第三个是输出层模块，第四个是正反向传播过渡模块。
-
-\begin{enumerate}
-\item 输入层模块负责处理数据的输入并在operator的init代码块中定义各层参数的初始化方法。
-\item 隐藏层模块对应神经网络中的三层隐藏层，隐藏层的实现需要构造层composite和节点composite两种composite，层composite利用COStream语句splitjoin中的duplicate重复分发上层流出的数据到节点composite。由于splitjoin语句只支持单输入单输出数据流，因此将正向传播时各个节点的执行结果同参数一样也保存在composite结构外的全局区域，用于在反向传播时进行参数梯度的计算。
-\item 输出层模块负责处理上层传入的数据并得到0到9十个数字的预测概率值，同样以splitjoin对10个输出节点的composite进行调用。
-正反向传播过渡模块负责计算损失函数的误差，并将其传递给反向时的输出层以供计算参数梯度，之后进入反向传播过程。
-
-\end{enumerate}
-
-四层全连接神经网络反向传播的并行化实现包括三个模块，第一个是反向输出层模块，第二个是反向隐藏层模块，第三个是参数更新模块。
-
-\begin{enumerate}
-\item 反向输出层模块连接着正向传播时的过渡层模块，过渡层模块将损失函数误差计算完毕后继续传递给反向输出模块。同样构造层composite和节点composite两种composite，其中节点composite计算本层节点的参数关于损失函数的偏导数以及本层在正向传播中的输入关于损失函数的偏导数；层composite使用COStream语句splitjoin通过duplicate重复分发过渡层模块误差数据流，向节点composite传递误差。
-\item 反向隐藏层节点和反向输出层节点的操作基本一致。
-\item 参数更新模块负责对隐藏层和输出层内的参数更新。参数更新操作必须保证原子性，即一次更新全部参数，不能只更新部分参数，所以模块中由一个单独composite负责更新全部参数，同时在参数更新前计算实际的改变量。
-
-\end{enumerate}
-
-\subsubsection{LeNet-5 卷积神经网络的并行化分析与设计}
-
-当前设计的LeNet-5卷积神经网络模型参照经典LeNet-5卷积神经网络模型，并在其基础上做了结构的微调，当前卷积神经网络模型拥有一个输入层、三个卷积层，两个池化层、两个全连接层和一个输出层，输入层以MNIST数据集中的单张图片作为输入。相对于经典LeNet-5卷积神经网络模型，当前模型增加了一层全连接层，并将全连接层的层内节点数缩减至20，其余结构均保持不变。图\ref{fig:cnn}是该模型的结构示意图。
-
-\begin{figure}[!t]
-\centering
-\includegraphics[width=0.5\textwidth]{../img/Chap_Application/Yu/cnn.png}
-\caption{LeNet-5卷积神经网络模型的结构示意图}
-\label{fig:cnn}
-\end{figure}
-
-在图\ref{fig:cnn}中，模型输入的是一个单通道的28×28大小的图片数组数据，第一卷积层被设定为用6组每组一个5×5大小的卷积核进行单步卷积计算，卷积完毕并经ReLU激励后得到6个24×24大小的输出数据，经第一次2×2最大池化后得到6个12×12的输出数据，第二卷积层被设定为用4组每组6个5×5大小的卷积核进行单步卷积计算，完毕后经ReLU激励得到4个8×8大小的输出数据，再经第二次2×2最大池化后得到4个4×4大小的输出数据，第三卷积层被设定为用40组每组4个4×4大小的卷积核进行单步卷积计算，得到一个有40个数据的一维向量，这40个数据将是全连接层的输入数据，两个全连接层均有二十个节点，输出层则有10个节点，两个全连接层和一个输出层在经历了加权求和并以Sigmoid激励函数激励的过程后，最终由输出层输出节点对应数字的预测概率值
-
-在LeNet-5卷积神经网络模型的正向传播过程中，各个卷积层的每一组的每一个卷积核在对输入的数据进行卷积处理时，互相之间均不存在数据依赖，因此可以用数据并行的方式将其在数据流编程模型中进行表示。池化层每次的输入的都是一个以三维数组表示的多个二维矩阵，其中各个二维数据的池化过程互不相关，所以可以同样用数据并行的方式对其进行表示。全连接层的并行化方法已经在本小节第一部分描述，各层的不同节点间也是用数据并行的方式表示。
-
-在LeNet-5卷积神经网络模型的反向传播过程中，误差先通过全连接层进行传播，此过程的并行化方法同本小节第一部分所述一致，当误差传递至卷积层时，卷积层节点需要经过三个过程完成计算过程，分别是： 
-\begin{enumerate}
-\item 用传入的误差与正向传播时输入该层节点的数据做卷积操作的方式得到卷积核weight权重参数的梯度。
-\item 用对误差矩阵各项求和的方式得到卷积核组的bias偏置参数的梯度。
-\item 用转置后的卷积核矩阵与用零填充过的误差矩阵做卷积操作的方式得到在正向传播时位于该层上层的节点所需要的误差。
-\end{enumerate}
-这三个过程都只需传入的误差或是正向传播时临时保存的各层输出值，其中任一过程所需数据不依赖于其他过程，对此可采用数据并行的方式进行并行化。
-
-误差在经过卷积层的反向传播处理后，输出的是反向池化层所需的误差，此时误差和池化层正向传播的输出结果维数一致，都是以三维数组形式表示的多个二维矩阵，其中每个二维矩阵在反向池化层中需要进行一次上采样过程，并将采样结果与ReLU激励函数对池化层输入数据的偏导数做一次Hadamard积运算，才能得到下一个反向卷积层所需的误差值。这个过程没有数据依赖，同样可以用数据并行的方式，对三维数组中的每个二维矩阵同时进行处理。
-
-将整个LeNet-5卷积神经网络模型的正向传播和反向传播连接起来看，各层间都是需要上层处理完成后传入处理结果才能执行本层，彼此间有着单向的数据依赖关系，因此可以用流水线并行的方式，将每层的处理过程抽象为流水线的一个阶段，到达并行化的目的。
-
-对于模型中的参数值，由于正反向传播过程均需要使用，所以各个卷积层的卷积核参数和卷积层组参数以及全接连层各节点的参数均作为全局变量保存在composite体外的全局区域中，全局区域同样还临时保存着正向传播过程中所有模块中各层的输出结果以供反向传播过程计算使用。
-
-LeNet-5卷积神经网络正向转播过程包括七个模块，分别是输入层模块、卷积层模块、池化层模块、卷积与全连接过渡模块、全连接模块、输出层模块和正反向传播过渡模块。
-输入层模块负责获取28×28大小的图片数组数据并传递给下层，同时要在模型的第一次执行前初始化所有卷积核的参数以及全连接层节点的参数，此过程通过设计inlayer comoposite结构，在inlayer composite内部的init语句块内以满足高斯分布的随机值初始化各个参数，在work语句块内读取图片数组数据。
-
-\begin{enumerate}
-\item 输入层模块
-
-输入层模块负责获取28×28大小的图片数组数据并传递给下层，同时要在模型
-的第一次执行前初始化所有卷积核的参数以及全连接层节点的参数，此过程通过设计inlayer comoposite结构，在inlayer composite内部的init语句块内以满足高斯分布的随机值初始化各个参数，在work语句块内读取图片数组数据。
-
-\item 卷积层模块
-
-卷积层模块负责对输入层中的三维矩阵进行卷积操作，此时把三维矩阵看成是多通道的二维矩阵，其第一维度通道数，即二维矩阵的个数与每组卷积核的个数一致，组内的各个卷积核以一一对应的方式对各个二维矩阵进行卷积操作，每组多个卷积核的单次卷积操作完成后，需要将其卷积结果相加并加上该组bias偏置参数得到带激励的输出，再经ReLU激励函数激励后得到最终的输出结果。整个层的卷积过程在COStream中可以借助两层splitjoin结构的嵌套进行描述，最外层的conv\_layer composite中用pipeline的形式分别对卷积组conv\_group composite和conv\_bias composite进行add操作，conv\_bias comoposite负责对每组各个卷积核卷积后的输出结果进行求和，并对求和结果进行ReLU激励，conv\_group composite负责调用conv\_kernel composite进行卷积计算。conv\_layer composite以splitjoin的duplicate调用形式对上层传入的三维矩阵进行复制，复制后的各个三维矩阵分别流入不同组的conv\_goup composite中，调用conv\_group composite时传入group\_index用于定位全局区域中该组对应的bias偏置参数。conv\_group composite则以splitjoin的roundrobin调用形式对传入的三维矩阵进行切割，切割成的多个二维矩阵分别流入对应的conv\_kernel composite中，以上就是卷积层两次splitjoin嵌套中的输入数据变化情况。conv\_group composite在调用conv\_kernel composite时则要传入group\_index和kernel\_index，用以定位在全局区域中卷积核的weight权重参数，传入size参数，用以确定被卷积的矩阵的大小。图\ref{fig:cnn_conv_layer}是卷积层模块中各个composite间的结构关系示意图。
-
-\begin{figure}[!t]
-\centering
-\includegraphics[width=0.5\textwidth]{../img/Chap_Application/Yu/cnn_conv_layer.png}
-\caption{卷积层模块中composite间的结构关系示意图}
-\label{fig:cnn_conv_layer}
-\end{figure}
-
-\item 池化层模块
-
-池化层模块负责将输入的三维矩阵按不同通道分成多个二维矩阵，并分别以2×2大小的池化区域进行最大池化，池化过程同样需要两个composite结构，一个是pool\_layer composite，一个是pool composite，pool\_layer composite内部使用split的roundrobin调用形式对单通道池化过程的pool composite进行add操作，将不同通道的二维矩阵数据发送至不同的pool composite进行池化操作。池化层的pool\_layer composite在对pool composite进行add操作时，不需要传递表示位置顺序的index参数，因为splitjoin语句中的split和join以相同的操作顺序对被add的composite进行数据分发和合并，即split切割后的第一批数据被对应节点处理完毕后所生成的数据，仍会被join第一个处理，因此COStream中的splitjoin操作保证了数据间的相对顺序不变。图\ref{fig:cnn_pooling_layer}是池化层模块中两类composite的结构关系。
-
-\begin{figure}[!t]
-\centering
-\includegraphics[width=0.5\textwidth]{../img/Chap_Application/Yu/cnn_pooling_layer.png}
-\caption{池化层模块中composite间的结构关系示意图}
-\label{fig:cnn_pooling_layer}
-\end{figure}
-
-\item 卷积与全连接过渡模块
-
-卷积与全连接过渡模块充当全连接层的输入层，模块只负责将最后一层卷积层的输出结果转发给下层全连接层，同时记录此输出结果至全局区域供反向传播时第一层全连接层参数梯度的计算使用。
-
-\item 全连接模块
-
-全连接模块同本小节第一部分所述的全连接神经网络中的隐藏层模块基本相同，其中包含了两个全连接层，每个全连接层有20个节点，每一层的层composite都通过splitjoin的duplicate调用方式完成层内各composite节点的add操作，同时传入index参数确定节点的weight、bias参数在全局区域的位置，传入size参数确定节点composite一次运行所需的数据量。层内的composite负责对输入加权求和并用Sigmoid激励函数激励。
-
-\item 输出层模块
-
-输出层模块上层与全连接模块相连，负责输出0到9十个数字的预测概率值，所以输出层模块内的输出层有十个输出节点，每个节点输出一个数字的预测概率值。具体操作同全连接层一样，都是以splitjoin的duplicate调用进行层内节点composite的add操作。调用时需要给节点composite传入index参数和size参数，为其提供全局区域参数位置和待处理数据的大小。
-
-\item 正反向传播过渡模块
-
-正反向传播过渡模块连接的是正向全连接层和反向全连接层，该模块负责计算出基于均方差损失函数得出的输出值与实际label目标值相减后所得的误差值，因此构造一个diff composite节点即可满足要求，调用此composite节点时需要传入与上层节点输出值大小一致的size参数，即label目标值维数，同时该节点输出值的数量也和label目标值维数一致。
-\end{enumerate}
-
-由于反向传播过程在对卷积层各个卷积核以及全连接层各个节点的参数梯度计算时，依赖于当前卷积层或全连接层所对应层的输入数据，所以卷积层模块、池化层模块和全连接模块的各层在正向传播时都在程序的全局区域中保存了临时的输出结果，其中卷积层模块和全连接层模块需要记录的是该层未通过激励函数激励的输出值，和已通过激励函数激励的激励值。由于池化层模块中仅存在池化操作，且池化结果不需要激励函数的激励处理，因此该层只需记录经过池化后的输出值。
-
-LeNet-5卷积神经网络反向传播过程包括七个模块，分别是反向输出层模块、反向全连接模块、反向全连接卷积过渡模块、反向卷积层模块、反向卷积核梯度合并模块、反向池化层模块和参数更新模块。反向传播时，误差以参数梯度的形式在各层间传播，同本小节第一部分所述的全连接神经网络的反向传播过程一样，记损失函数对该层输出值的偏导数为$\delta$，若已知卷积层的$\delta$值，则该层中的各卷积核组的bias偏置参数的梯度等于相对应的$\delta$矩阵的各元素之和，组内各卷积核的weight权重参数的梯度等于该卷积层输入值与$\delta$值经卷积后的结果，因此反向传播时反向卷积层可以通过$\delta$值计算该层参数的梯度。
-
-现考虑已知第m层卷积层的$\delta _{m}$如何计算出上一层第m-1层的池化层所需的$\delta _{m - 1}$，为了计算这个$\delta _{m - 1}$，需要利用复合函数求导的链式法则进行分析，记本层输出值为$Z _{m}$，上层池化层的输出值为$Z _{m - 1}$，卷积核weight权重参数为W，W的转置为$W ^{T}$，则$\delta _{m - 1}$等于将$\delta _{m}$用零扩展得到的矩阵与$W ^{T}$卷积运算再同$Z _{m - 1}$做Hadamard积运算后的结果。再考虑已知第m-1层的池化层的$\delta _{m - 1}$，如何计算出上层第m-2层的卷积层所需的$\delta _{m - 2}$值，由于采用的是2×2最大池化的方式进行池化，反向传播时池化层的$\delta _{m - 1}$的必须要经过上采样还原成池化层输入值的大小，同时由于第m-2层卷积层的卷积结果被ReLU激励函数激励过，记ReLU对x的导数为R(x)，第m-2层卷积层的卷积结果为$Z _{m - 2}$，则$\delta _{m - 2}$等于还原后的值与R($Z _{m - 2}$)做Hadamard积运算的结果。以上就是反向传播时，卷积层计算对上层池化层$\delta$和池化层计算上层卷积层$\delta$的过程。以数据流编程模型的角度考虑，$\delta$就是LeNet-5卷积神经网络在反向传播阶段各层间流动的值。
-
-\begin{enumerate}
-
-\item 反向输出层模块
-
-反向输出层模块接收正反向过渡模块的输出值，该模块由反向输出层bout\_layer composite和层内节点bout composite两个composite构成，bout\_layer composite以splitjoin的roundrobin调用方式，将传入的误差值以带index参数的方式分批传给bout composite，bout composite内部计算对应输出层节点的weight和bias参数梯度值，并传出计算完毕的bias梯度值作为下一模块的输入。
-
-\item 反向全连接模块
-
-反向全连接模块中有两个反向全连接层，每层都有各自的bfullconn\_layer composite和节点bfullconn\_node composite，其中bfullconn\_layer composite以splitjoin的duplicate调用方式，复制传入的全部数据给层内的20个bfullconn\_node composite，bfullconn\_node composite计算各节点对应的weight参数和bias参数梯度。
-
-\item 反向全连接卷积过渡模块
-
-由于反向全连接层中各层间传递的是本层的$\delta$值，传入到上层后由上层负责计算上层自己的$\delta$值，而反向卷积层和反向池化层之间传递的是已经在本层计算完毕的上层$\delta$值，因此需要一个过渡层完成这种差异的转变。反向全连接卷积过渡层模块只完成计算与全连接层相连的卷积层的$\delta$值的任务，因此只用一个bconv\_fconn composite完成这个过程。
-
-\item 反向卷积层模块
-
-反向卷积层模块中的各个卷积层有三个任务要处理，分别是计算当前卷积层组的bias参数梯度、计算当前卷积层的组内各通道卷积核的weight参数梯度以及计算反向池化层的$\delta$值。这三个任务之间没有数据依赖关系，因此模块中的bconv\_layer composite以splitjoin的roundrobin调用方式，将每组卷积核对应的$\delta$数据切割后分批传给各个bconv\_group composite。bconv\_group composite在内部以splitjoin的duplicate调用方式，将每组对应的$\delta$数据重复分发给bconv\_bias composite、bconv\_weight composite和bconv\_delta composite三种任务composite，三种任务composite分别负责bias参数梯度的计算、weight参数梯度的计算和$\delta$值的计算，由于只有$\delta$值需要传出，因此bconv\_bias composite和bconv\_weight composite只需要传递一个代表任务完成的信号数据给join节点，bconv\_delta composite则要传递计算出的反向池化层的$\delta$值。
-
-\item 反向卷积核梯度合并模块
-
-反向卷积核梯度合并模块接收反向卷积模块的输出，其中前两个数据是信号数据，处理时直接舍去，其余数据是反向池化层的$\delta$值。由于反向卷积层模块是以分组的形式在各组内计算自己组对反向池化层的$\delta$值，因此需要将各组间相同通道对应的$\delta$值相加，合并成最终的$\delta$值。此模块中包括两个composite，一个是merge\_group composite，负责以splitjoin的roundrobin调用形式提取各卷积组相同通道的输出数据，传入对应的merge composite，每个merge composite完成一个通道的$\delta$值合并操作，合并完成后通过join节点连接合并值再传递给反向池化层模块。
-
-\item 反向池化层模块
- 
-反向池化层模块只负责用传入的反向池化层$\delta$值计算传入下一反向卷积层$\delta$值，计算需要先对池化层$\delta$值进行上采样操作再乘上卷积时ReLU激励函数对卷积层卷积结果的导数，$\delta$的各通道值在进行次操作时可以同时进行，因此本模块包括pool\_layer composite和pool composite两个composite结构，pool\_layer composite利用splitjoin的roundrobin调用提取各通道的$\delta$值传递给各通道对应的pool composite，pool composite在内部实现对$\delta$值的具体操作。
-
-\item 参数更新模块
-
-参数更新模块负责在一次完整的正向传播和反向传播执行完毕后，对全局区域中卷积核的weight参数、卷积组的bias参数以及全连接层节点的参数进行梯度下降更新，同时参数更新前需要计算实际的改变量，若所有参数的改变量小于某一指定值，则停止模型的训练。
-
-\end{enumerate}
+全连接层反向过程也是矩阵乘法，因此同样可以用正向传播中图节点代表神经元的方式对该层进行数据并行处理。
 
 \subsection{相关工作}
 
