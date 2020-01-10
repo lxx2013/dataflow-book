@@ -399,7 +399,7 @@ complexity）定义为远小于问题规模的片内SRAM和大于问题规模的
 	证毕。
 \end{proof}
 引理\label{lemma:memory_complexity}给出了算法存储访问复杂性的上界，由于算法的基本操作$\otimes$和矩阵乘的计算行为一样，而且以前的研究证明了其存储访问
-复杂性的下界为$\Omega(\frac{n^{3}}{x\sqrt{p}})$\cite{layout-tpds03}，从而有下面关于在多核结构上的并行流水动态规划算法的存储访问复杂性定理：
+复杂性的下界为$\Omega(\frac{n^{3}}{x\sqrt{p}})$\citep{layout-tpds03}，从而有下面关于在多核结构上的并行流水动态规划算法的存储访问复杂性定理：
 \begin{theorem}
 	分片的并行流水算法的存储访问复杂性是近似最优的。
 \end{theorem}
@@ -578,7 +578,7 @@ $T_{0}(x)$的解说明$x$越大越好，然而增加$x$的值导致计算并行�
 
 \subsection{图遍历算法介绍}
 大规模网络分析方法应用于许多重要的应用中如社会网络分析（亲朋关系、组织结构和反恐）、WWW因特网（网络拓扑）、交通运输网络、家谱关系和生物信息学
-（蛋白质相互作用网络、性/AIDS网络和食物网络）\citep{network-app-social-Freeman,network-app-social-url,network-cs-acm,network-cs-connections,network-app-web,network-app-internet,network-app-bioinformatics,network-app-nature,network-app-recomb,network-app-aids}。在大多数应用中，图的抽象和算法经常用于描述和解释问题的本质\cite{network-app,network-app-sci}。基于图论的网络分析能够从
+（蛋白质相互作用网络、性/AIDS网络和食物网络）\citep{network-app-social-Freeman,network-app-social-url,network-cs-acm,network-cs-connections,network-app-web,network-app-internet,network-app-bioinformatics,network-app-nature,network-app-recomb,network-app-aids}。在大多数应用中，图的抽象和算法经常用于描述和解释问题的本质\citep{network-app,network-app-sci}。基于图论的网络分析能够从
 真实数据构建的大规模图来抽取有意义的信息，如识别反恐网络中关键人物、蛋白质网络中起主要调控作用的蛋白等。
 
 构建合适的模型模拟复杂的真实世界网络本身就是一个
@@ -600,7 +600,7 @@ index）\citep{network-centrality}。社会网络分析中，顶点的向心性�
 分别用$n$和$m$表示，图可以是有向或者无向的。每一条边赋予一个权值$w(e)$（无权图中$w(e)=1$）。从顶点$s$到$t$的路径用多个有序的二元组
 $<u_{i},u_{i+1}>$表示，其中$0\le i\le l, u_{0}=s, u_{t} =
 t$，路径的长度$d(s,t)$是该路径上所有边的权值的和。用$\sigma_{st}$表示顶点$s$和$t$之间最小路径的条数，而其中经过另外一个顶点$v$的最小路径条数用
-$\sigma_{st}(v)$表示。1977年，Freeman\cite{network-bc}首次提出了介度中心概念。用$\delta_{st}(v)$表示任意顶点的两两依赖性（pairwise
+$\sigma_{st}(v)$表示。1977年，Freeman\citep{network-bc}首次提出了介度中心概念。用$\delta_{st}(v)$表示任意顶点的两两依赖性（pairwise
 dependency），即顶点$s$到$t$之间的最小路径中经过顶点$v$的条数与总数的比值：
 \begin{equation}\label{eq:pairwise_dep}
 \delta_{st}(v)=\frac{\sigma_{st}(v)}{\sigma{st}}
